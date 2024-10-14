@@ -18,6 +18,7 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include <stdint.h>
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -31,6 +32,10 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
+//#define InputBufferSize 52000
+#define InputBufferSize 20000
+#define OutputBufferSize InputBufferSize*2-1
+#define OutputBufferSizePCM InputBufferSize
 
 /* USER CODE END PD */
 
@@ -43,6 +48,8 @@
 I2S_HandleTypeDef hi2s2;
 
 /* USER CODE BEGIN PV */
+PDMFilter_InitStruct Filter;
+
 
 /* USER CODE END PV */
 
@@ -51,6 +58,8 @@ void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_I2S2_Init(void);
 /* USER CODE BEGIN PFP */
+void Init_PDM(void);
+void sixteenbits_to_eightbits_converter(uint16_t *InputBuffer, uint8_t *ConvertedBuffer);
 
 /* USER CODE END PFP */
 
@@ -67,6 +76,14 @@ int main(void)
 {
 
   /* USER CODE BEGIN 1 */
+  //uint16_t InputBufferSize = 52000;
+  //uint16_t OutputBufferSize = 52000;
+  uint16_t InputBuffer[InputBufferSize];
+  uint8_t OutputBuffer[OutputBufferSize];
+  uint16_t OutputBufferPCM[OutputBufferSizePCM];
+  uint32_t TimeoutReceive = 100;
+
+  uint16_t MicGain = 20;
 
   /* USER CODE END 1 */
 
@@ -90,6 +107,19 @@ int main(void)
   MX_GPIO_Init();
   MX_I2S2_Init();
   /* USER CODE BEGIN 2 */
+  HAL_I2S_Receive(&hi2s2, InputBuffer, InputBufferSize, TimeoutReceive);
+  HAL_I2S_DeInit(&hi2s2);
+  Init_PDM();
+  sixteenbits_to_eightbits_converter(InputBuffer, OutputBuffer);
+  PDM_Filter_64_MSB(OutputBuffer, OutputBufferPCM, MicGain, &Filter);
+
+  for(uint16_t i = 0 ; i < OutputBufferSizePCM ; i++)
+  {
+	  printf("%u\n", OutputBufferPCM[i]);
+	  HAL_Delay(10);
+  }
+
+
 
   /* USER CODE END 2 */
 
@@ -158,13 +188,6 @@ static void MX_I2S2_Init(void)
 {
 
   /* USER CODE BEGIN I2S2_Init 0 */
-  uint16_t BufferSize = 10000;
-  uint16_t InputBuffer[BufferSize];
-  for(uint32_t i = 0 ; i < BufferSize ; i++)
-  {
-	  InputBuffer[i] = 0;
-  }
-  uint32_t TimeoutReceive = 100;
 
   /* USER CODE END I2S2_Init 0 */
 
@@ -175,8 +198,8 @@ static void MX_I2S2_Init(void)
   hi2s2.Init.Mode = I2S_MODE_MASTER_RX;
   hi2s2.Init.Standard = I2S_STANDARD_PHILIPS;
   hi2s2.Init.DataFormat = I2S_DATAFORMAT_16B;
-  hi2s2.Init.MCLKOutput = I2S_MCLKOUTPUT_DISABLE;
-  hi2s2.Init.AudioFreq = I2S_AUDIOFREQ_16K;
+  hi2s2.Init.MCLKOutput = I2S_MCLKOUTPUT_ENABLE;
+  hi2s2.Init.AudioFreq = I2S_AUDIOFREQ_8K;
   hi2s2.Init.CPOL = I2S_CPOL_LOW;
   hi2s2.Init.ClockSource = I2S_CLOCK_PLL;
   hi2s2.Init.FullDuplexMode = I2S_FULLDUPLEXMODE_DISABLE;
@@ -185,8 +208,6 @@ static void MX_I2S2_Init(void)
     Error_Handler();
   }
   /* USER CODE BEGIN I2S2_Init 2 */
-  HAL_I2S_Receive(&hi2s2, InputBuffer, BufferSize, TimeoutReceive);
-  HAL_I2S_DeInit(&hi2s2);
 
   /* USER CODE END I2S2_Init 2 */
 
@@ -212,6 +233,36 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+void Init_PDM(void)
+{
+	Filter.LP_HZ = 8000;
+	Filter.HP_HZ = 10;
+	Filter.Fs = 16000;
+	Filter.Out_MicChannels = 1;
+	Filter.In_MicChannels = 1;
+
+	__RCC_CRC_CLK_ENABLE();
+
+	PDM_Filter_Init(&Filter);
+
+}
+
+void sixteenbits_to_eightbits_converter(uint16_t *InputBuffer, uint8_t *ConvertedBuffer)
+{
+	// Supposons que pData est rempli par HAL_I2S_Receive et qu'InputBufferSize est le nombre d'échantillons reçus
+	//uint16_t InputBuffer[InputBufferSize]; // Buffer pour les données PDM en uint16_t
+	//uint8_t ConvertedBuffer[InputBufferSize * 2]; // Buffer pour les données converties en uint8_t (car 16 bits = 2 octets)
+
+	// Conversion de uint16_t à uint8_t
+	for (uint32_t i = 0; i < InputBufferSize; i++) {
+		// Extrait les bits de pData (16 bits) et les stocke dans ConvertedBuffer (8 bits)
+		ConvertedBuffer[i * 2] = (InputBuffer[i] & 0xFF);         // 8 bits de poids faible
+		ConvertedBuffer[i * 2 + 1] = (InputBuffer[i] >> 8) & 0xFF; // 8 bits de poids fort
+	}
+}
+
+
+
 
 /* USER CODE END 4 */
 

@@ -31,6 +31,7 @@ extern "C" {
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include "pdm_filter.h"
 
 /* USER CODE END Includes */
 
@@ -59,6 +60,13 @@ void Error_Handler(void);
 /* Private defines -----------------------------------------------------------*/
 
 /* USER CODE BEGIN Private defines */
+#define __RCC_CRC_CLK_ENABLE()   do { \
+                                            __IO uint32_t tmpreg = 0x00U; \
+                                            SET_BIT(RCC->AHB1ENR, RCC_AHB1ENR_CRCEN);\
+                                            /* Delay after an RCC peripheral clock enabling */ \
+                                            tmpreg = READ_BIT(RCC->AHB1ENR, RCC_AHB1ENR_CRCEN);\
+                                            UNUSED(tmpreg); \
+                                          } while(0U)
 
 /* USER CODE END Private defines */
 
